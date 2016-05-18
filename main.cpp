@@ -13,8 +13,13 @@ Application main (and only) file. Does all the magic
 
 double** invertMatrix(double** matrix)
 {
+  const int matrixSize = 2;
   double** inverse;
-  inverse = matrix;
+  inverse = new double*[matrixSize];
+  for (int i = 0; i < matrixSize; i++)
+  {
+    inverse[i] = new double[matrixSize];
+  }
 
   const double determinant = (matrix[0][0] * matrix[1][1]) - (matrix[0][1] * matrix[1][0]);
 
@@ -243,8 +248,10 @@ vector<Point> findTrackPoints(vector< CImg<double> > imageGradients, const int t
 vector<Point> calculateOpticalFlow(vector<Point> pointsToTrack, vector< CImg<double> > imageGradients, CImg<double> timeGradient, const int trackerFilterSize)
 {
   const int offset = (int) trackerFilterSize/2;
+  
   CImg<double> gradientX = imageGradients[0], gradientY = imageGradients[1];
   vector<Point> newPoints;
+  
   for(vector<Point>::iterator it = pointsToTrack.begin(); it != pointsToTrack.end(); ++it)
   {
     const int x = it->x;
@@ -319,6 +326,9 @@ int main (int argc, char **argv)
 
   displayImage(points1);
   displayImage(points2);
+
+  points1.save("frame1.png");
+  points2.save("frame2.png");
 
   return 0;
 }
