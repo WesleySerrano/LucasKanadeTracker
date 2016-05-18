@@ -11,8 +11,8 @@ using namespace std;
 
 typedef struct _point
 {
-  long x;
-  long y;
+  double x;
+  double y;
 } Point;
 
 double MaxTone(double r,double g,double b)

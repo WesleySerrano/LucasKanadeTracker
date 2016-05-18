@@ -51,13 +51,16 @@ double** calculateMatrix(CImg<double> gradientX, CImg<double> gradientY, int x, 
     for(int j = -offset; j <= offset; j++)
     {
       const int px = x + j;
+      //const double delta = sqrt(2.0);
+      //const double squareDelta = delta * delta;
+      const double weight = 1.0;//(exp((-(i*i+j*j))/(2*squareDelta)))/(2*squareDelta*M_PI);
       const double cX = gradientX(px, py, 0, 0);
       const double cY = gradientY(px, py, 0, 0);
 
-      matrix[0][0] += (cX * cX);
-      matrix[1][0] += (cX * cY);
-      matrix[0][1] += (cX * cY);
-      matrix[1][1] += (cY * cY);
+      matrix[0][0] += weight * (cX * cX);
+      matrix[1][0] += weight * (cX * cY);
+      matrix[0][1] += weight * (cX * cY);
+      matrix[1][1] += weight * (cY * cY);
     }
   }
 
@@ -205,7 +208,6 @@ vector<Point> findTrackPoints(vector< CImg<double> > imageGradients, const int t
     }
   }
 
-  long pixelsCounter = 0;
   for (int i = offset; i < HEIGHT - offset; i++)
   {
     for (int j = offset; j < WIDTH - offset; j++)
@@ -230,8 +232,6 @@ vector<Point> findTrackPoints(vector< CImg<double> > imageGradients, const int t
 
       if(lambdaMatrix[i][j] > 0.1*maxLambda && maxInNeighbourhood)
       {
-        pixelsCounter++;
-
         Point newPointToTrack;
 
         newPointToTrack.y = i;
@@ -251,11 +251,12 @@ vector<Point> calculateOpticalFlow(vector<Point> pointsToTrack, vector< CImg<dou
   
   CImg<double> gradientX = imageGradients[0], gradientY = imageGradients[1];
   vector<Point> newPoints;
+  double averageVx = 0, averageVy = 0;
   
   for(vector<Point>::iterator it = pointsToTrack.begin(); it != pointsToTrack.end(); ++it)
   {
-    const int x = it->x;
-    const int y = it->y;
+    const double x = it->x;
+    const double y = it->y;
 
     double **matrix, **inverse, *vector, *opticalFlow;
     matrix = calculateMatrix(gradientX, gradientY, x, y, offset);
@@ -268,6 +269,50 @@ vector<Point> calculateOpticalFlow(vector<Point> pointsToTrack, vector< CImg<dou
     Point newPoint;
     newPoint.x = (int)round(x + opticalFlow[0]);
     newPoint.y = (int)round(y + opticalFlow[1]);
+
+    averageVx += opticalFlow[0];
+    averageVy += opticalFlow[1];
+
+    newPoints.push_back(newPoint);
+  }
+
+  cout << averageVx/pointsToTrack.size() << " " << averageVy/pointsToTrack.size() << endl;
+
+  return newPoints;
+}
+
+void markPointsOnImage(CImg<double> image, vector<Point> pointsToMark)
+{
+  CImg<double> points = image;
+
+  for(vector<Point>::iterator it = pointsToMark.begin(); it != pointsToMark.end(); ++it)
+  {
+    const double x = it->x;
+    const double y = it->y;
+
+    points(x, y, 0, 0) = 0;
+    points(x, y, 0, 1) = 255;
+    points(x, y, 0, 2) = 0;
+  }
+
+  displayImage(points);
+}
+
+vector<Point> findLastLevelPoints(vector<Point> pointsToTrack, int numberOfLevels)
+{
+	const int p = numberOfLevels - 1;
+
+	vector<Point> newPoints;
+
+  for(vector<Point>::iterator it = pointsToTrack.begin(); it != pointsToTrack.end(); ++it)
+  {
+    const double x = it->x;
+    const double y = it->y;
+
+    Point newPoint;
+
+    newPoint.x = x/pow(2.0,p);
+    newPoint.y = y/pow(2.0,p);
 
     newPoints.push_back(newPoint);
   }
@@ -290,7 +335,6 @@ int main (int argc, char **argv)
   frame1 = makeImageGray(frame1);
   frame2 = makeImageGray(frame2);
   const int WIDTH = frame1.width(), HEIGHT = frame2.height();
-  CImg<double> points1 = frame1, points2 = frame2;
 
   vector< CImg<double> > gradientsFrame1 = makeGradients(frame1);
   vector< CImg<double> > gradientsFrame2 = makeGradients(frame2);
@@ -302,33 +346,7 @@ int main (int argc, char **argv)
 
   vector<Point> pointsToTrack = findTrackPoints(gradientsFrame1, trackerFilterSize);
 
-  vector<Point> pointsNewsPositions = calculateOpticalFlow(pointsToTrack, gradientsFrame1, timeGradient, trackerFilterSize);
-
-  for(vector<Point>::iterator it = pointsToTrack.begin(); it != pointsToTrack.end(); ++it)
-  {
-    const int x = it->x;
-    const int y = it->y;
-
-    points1(x, y, 0, 0) = 0;
-    points1(x, y, 0, 1) = 255;
-    points1(x, y, 0, 2) = 0;
-  }
-
-  for(vector<Point>::iterator it = pointsNewsPositions.begin(); it != pointsNewsPositions.end(); ++it)
-  {
-    const int x = it->x;
-    const int y = it->y;
-
-    points2(x, y, 0, 0) = 0;
-    points2(x, y, 0, 1) = 255;
-    points2(x, y, 0, 2) = 0;
-  }
-
-  displayImage(points1);
-  displayImage(points2);
-
-  points1.save("frame1.png");
-  points2.save("frame2.png");
+  vector<Point> newPointsToTrack = findLastLevelPoints(pointsToTrack, gaussianPyramidFrame1.size());
 
   return 0;
 }
