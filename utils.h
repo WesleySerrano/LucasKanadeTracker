@@ -1,3 +1,14 @@
+/**
+@file utils.h
+Application auxiliary functions
+
+@brief Feature tracking using Lucas-Kanade algorithm
+
+@date 18 May 2016
+
+@author Wesley Serrano
+*/
+
 #include "CImg.h"
 #include <iostream>
 #include <vector>
@@ -15,23 +26,65 @@ typedef struct _point
   double y;
 } Point;
 
+typedef struct _vector2
+{
+  double x;
+  double y;
+} Vector2;
+
+/**
+  Returns the maximum of three values of the colors channels of a pixel
+
+  @param r The value of the red channel
+  @param g The value of the green channel
+  @param b The value of the blue channel
+
+  @return The maximum of the color channels
+*/
 double MaxTone(double r,double g,double b)
 {
   double aux = max(r,g);
   return max(aux,b);
 }
 
+/**
+  Returns the minimum of three values of the colors channels of a pixel
+
+  @param r The value of the red channel
+  @param g The value of the green channel
+  @param b The value of the blue channel
+
+  @return The minimum of the color channels
+*/
 float MinTone(float r,float g,float b)
 {
   float aux = min(r,g);
   return min(aux,b);
 }
 
+/**
+  Returns the average of three values of the colors channels of a pixel
+
+  @param r The value of the red channel
+  @param g The value of the green channel
+  @param b The value of the blue channel
+
+  @return The average of the color channels
+*/
 float AvgTone(float r,float g,float b)
 {
   return (r + g + b)/3.0;
 }
 
+/**
+  Creates a gray scale version of an image
+
+  @param image Image to be transformed
+  @param scale Indicates whether or not the RGB channels values should be in the range [0, 1] or [0, 255] (as integer values)
+
+
+  @return Image in gray scale
+*/
 CImg<double> makeImageGray(CImg<double> image, bool scale = true)
 {
   const bool scaleFactor = scale ? 255 : 1;
@@ -49,6 +102,31 @@ CImg<double> makeImageGray(CImg<double> image, bool scale = true)
   }
 
   return result;
+}
+
+
+/**
+  Creates a window to display a image given as input parameter
+  with green dots on the points given as the other parameter
+
+  @param image Image to be marked and shown on a window
+  @param pointsToMark The coordinates of the points to be marked on the image
+*/
+void markPointsOnImage(CImg<double> image, vector<Point> pointsToMark)
+{
+  CImg<double> points = image;
+
+  for(vector<Point>::iterator it = pointsToMark.begin(); it != pointsToMark.end(); ++it)
+  {
+    const double x = it->x;
+    const double y = it->y;
+
+    points(x, y, 0, 0) = 0;
+    points(x, y, 0, 1) = 255;
+    points(x, y, 0, 2) = 0;
+  }
+
+  displayImage(points);
 }
 
 /**

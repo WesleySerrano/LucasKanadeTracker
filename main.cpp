@@ -1,6 +1,6 @@
 /**
 @file main.cpp
-Application main (and only) file. Does all the magic
+Application main file. Receives user input and runs the tracker algorithm
 
 @brief Feature tracking using Lucas-Kanade algorithm
 
@@ -11,6 +11,13 @@ Application main (and only) file. Does all the magic
 
 #include "utils.h"
 
+/**
+  Calculates the inverse of a 2x2 matrix
+
+  @param matrix The matrix to be inverted
+
+  @return The inverse matrix
+*/
 double** invertMatrix(double** matrix)
 {
   const int matrixSize = 2;
@@ -31,6 +38,17 @@ double** invertMatrix(double** matrix)
   return inverse;
 }
 
+/**
+  Calculates the matrix (...)
+
+  @param gradientX The horizontal gradient for each pixel of an image
+  @param gradientY The vertical gradient for each pixel of an image
+  @param x The x coordinate of the pixel
+  @param y The y coordinate of the pixel
+  @param offset The distance from the pixel to its furthest horizontal (and vertical) neighbours
+
+  @return The matrix (...)
+*/
 double** calculateMatrix(CImg<double> gradientX, CImg<double> gradientY, int x, int y, int offset)
 {
   const int matrixSize = 2;
@@ -67,7 +85,18 @@ double** calculateMatrix(CImg<double> gradientX, CImg<double> gradientY, int x, 
   return matrix;
 }
 
+/**
+  Calculates the vector (...)
 
+  @param gradientX The horizontal gradient for each pixel of an image
+  @param gradientY The vertical gradient for each pixel of an image
+  @param timeGradient The time gradient for each pixel of an image
+  @param x The x coordinate of the pixel
+  @param y The y coordinate of the pixel
+  @param offset The distance from the pixel to its furthest horizontal (and vertical) neighbours
+
+  @return The vector (...)
+*/
 double* calculateVector(CImg<double> gradientX, CImg<double> gradientY, CImg<double> timeGradient, int x, int y, int offset)
 {
   const int vectorSize = 2;
@@ -99,20 +128,32 @@ double* calculateVector(CImg<double> gradientX, CImg<double> gradientY, CImg<dou
   return vector;
 }
 
-double* multiplyVectorByMatrix(double** matrix, double* vector)
+/**
+  Multiplies a 2x2 matrix by a 2-dimensional vector
+
+  @param matrix The matrix
+  @param vector The bidimensional vector
+
+  @return The result of the multiplication
+*/
+Vector2 multiplyVectorByMatrix(double** matrix, double* vector)
 {
-  const int vectorSize = 2;
-  double *result;
+  Vector2 result;
 
-  result = new double[vectorSize];
-
-  result[0] = matrix[0][0]*vector[0] + matrix[0][1]*vector[1];
-  result[1] = matrix[1][0]*vector[0] + matrix[1][1]*vector[1];
+  result.x = matrix[0][0]*vector[0] + matrix[0][1]*vector[1];
+  result.y = matrix[1][0]*vector[0] + matrix[1][1]*vector[1];
 
   return result;
 }
 
-double minimunEigenValue(double** matrix, int x, int y)
+/**
+  Calculates smallest eigenvalue of a 2x2 matrix
+
+  @param matrix The matrix which eigenvalues will be calculated
+
+  @return The smallest eigenvalue of the input matrix
+*/
+double minimunEigenValue(double** matrix)
 {
   const double trace = matrix[0][0] + matrix[1][1];
   const double determinant = (matrix[0][0] * matrix[1][1]) - (matrix[0][1] * matrix[1][0]);
@@ -125,6 +166,13 @@ double minimunEigenValue(double** matrix, int x, int y)
   else return 0;
 }
 
+/**
+  Calculates the horizontal and vertical gradientes of an image
+
+  @param image The image which the gradients will be calculated
+
+  @return The imagens containing the gradients of the image
+*/
 vector< CImg<double> > makeGradients(CImg<double> image)
 {
   const int WIDTH = image.width(), HEIGHT = image.height(); 
@@ -164,6 +212,14 @@ vector< CImg<double> > makeGradients(CImg<double> image)
   return gradients;
 }
 
+/**
+  Calculates the time gradient of an image
+
+  @param image1 The image which gradient will be calculated
+  @param image2 The next image in the frames sequence
+
+  @return The image containing the time gradient of each pixel
+*/
 CImg<double> makeTimeGradient(CImg<double> image1, CImg<double> image2)
 {
   CImg<double> result = subtract(image2, image1);
@@ -171,6 +227,14 @@ CImg<double> makeTimeGradient(CImg<double> image1, CImg<double> image2)
   return makeImageGray(result);
 }
 
+/**
+  Find the points to be tracked by the Lucas Kanade algorithm
+
+  @param imageGradients The horizontal and vertical gradients of an image
+  @param trackerFilterSize The size of the windows to filter the points found
+
+  @return The points to be tracked during the algorithm
+*/
 vector<Point> findTrackPoints(vector< CImg<double> > imageGradients, const int trackerFilterSize)
 {
   CImg<double> gradientX = imageGradients[0], gradientY = imageGradients[1];
@@ -245,12 +309,21 @@ vector<Point> findTrackPoints(vector< CImg<double> > imageGradients, const int t
   return pointsToTrack;
 }
 
-vector<Point> calculateOpticalFlow(vector<Point> pointsToTrack, vector< CImg<double> > imageGradients, CImg<double> timeGradient, const int trackerFilterSize)
+/**
+  Find the flow vectors of the input points given
+
+  @param pointsToTrack The points to be tracked during the algorithm
+  @param imageGradients The horizontal and vertical gradients of an image
+  @param trackerFilterSize The size of the windows to filter the points found
+
+  @return The flow vectors for each point of the input
+*/
+vector<Vector2> calculateOpticalFlow(vector<Point> pointsToTrack, vector< CImg<double> > imageGradients, CImg<double> timeGradient, const int trackerFilterSize)
 {
   const int offset = (int) trackerFilterSize/2;
   
   CImg<double> gradientX = imageGradients[0], gradientY = imageGradients[1];
-  vector<Point> newPoints;
+  vector<Vector2> opticalFlows;
   double averageVx = 0, averageVy = 0;
   
   for(vector<Point>::iterator it = pointsToTrack.begin(); it != pointsToTrack.end(); ++it)
@@ -258,51 +331,48 @@ vector<Point> calculateOpticalFlow(vector<Point> pointsToTrack, vector< CImg<dou
     const double x = it->x;
     const double y = it->y;
 
-    double **matrix, **inverse, *vector, *opticalFlow;
+    double **matrix, **inverse, *vector;
     matrix = calculateMatrix(gradientX, gradientY, x, y, offset);
 
     inverse = invertMatrix(matrix);
     vector = calculateVector(gradientX, gradientY, timeGradient, x, y, offset);
 
-    opticalFlow = multiplyVectorByMatrix(inverse, vector);
+    Vector2 opticalFlow = multiplyVectorByMatrix(inverse, vector);
 
-    Point newPoint;
-    newPoint.x = (int)round(x + opticalFlow[0]);
-    newPoint.y = (int)round(y + opticalFlow[1]);
+    averageVx += opticalFlow.x;
+    averageVy += opticalFlow.y;
 
-    averageVx += opticalFlow[0];
-    averageVy += opticalFlow[1];
-
-    newPoints.push_back(newPoint);
+    opticalFlows.push_back(opticalFlow);
   }
 
   cout << averageVx/pointsToTrack.size() << " " << averageVy/pointsToTrack.size() << endl;
 
-  return newPoints;
+  return opticalFlows;
 }
 
-void markPointsOnImage(CImg<double> image, vector<Point> pointsToMark)
+void pyramidalOpticalFlow(vector<Point> pointsToTrack, vector< CImg<double> > imageOneGradients, vector< CImg<double> > imageTwoGradients, const int trackerFilterSize)
 {
-  CImg<double> points = image;
+  const int NUMBER_OF_IMAGES = imageOneGradients.size();
 
-  for(vector<Point>::iterator it = pointsToMark.begin(); it != pointsToMark.end(); ++it)
+  for(int i = NUMBER_OF_IMAGES - 1; i >= 0; i++)
   {
-    const double x = it->x;
-    const double y = it->y;
 
-    points(x, y, 0, 0) = 0;
-    points(x, y, 0, 1) = 255;
-    points(x, y, 0, 2) = 0;
   }
-
-  displayImage(points);
 }
 
+/**
+  Find the points corresponding to the last level of th pyramid
+
+  @param pointsToTrack The points to be tracked during the algorithm
+  @param numberOfLevels The number of levels of the pyramid
+
+  @return The corresponding track points in the pyramid last level
+*/
 vector<Point> findLastLevelPoints(vector<Point> pointsToTrack, int numberOfLevels)
 {
-	const int p = numberOfLevels - 1;
+  const int p = numberOfLevels - 1;
 
-	vector<Point> newPoints;
+  vector<Point> newPoints;
 
   for(vector<Point>::iterator it = pointsToTrack.begin(); it != pointsToTrack.end(); ++it)
   {
@@ -347,6 +417,8 @@ int main (int argc, char **argv)
   vector<Point> pointsToTrack = findTrackPoints(gradientsFrame1, trackerFilterSize);
 
   vector<Point> newPointsToTrack = findLastLevelPoints(pointsToTrack, gaussianPyramidFrame1.size());
+  
+  pyramidalOpticalFlow(newPointsToTrack, gaussianPyramidFrame1, gaussianPyramidFrame2, trackerFilterSize);
 
   return 0;
 }
