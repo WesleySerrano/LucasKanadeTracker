@@ -77,6 +77,33 @@ float AvgTone(float r,float g,float b)
 }
 
 /**
+  Creates a window to display a image given as input parameter
+
+  @param image Image to be shown on a window
+*/
+
+void displayImage(CImg<double> image)
+{
+  CImgDisplay display(image, "Image");
+
+  while (!display.is_closed()) 
+  {
+    display.wait();
+  }
+}
+
+/**
+  Creates a window to display a vector of images given as input parameter.
+  Displays one image at a time
+
+  @param images The vector containing the images to be shown on a window
+*/
+void displayImages(vector< CImg<double> > images)
+{
+  for(int i = 0; i < images.size(); i++) displayImage(images[i]);
+}
+
+/**
   Creates a gray scale version of an image
 
   @param image Image to be transformed
@@ -127,33 +154,6 @@ void markPointsOnImage(CImg<double> image, vector<Point> pointsToMark)
   }
 
   displayImage(points);
-}
-
-/**
-  Creates a window to display a image given as input parameter
-
-  @param image Image to be shown on a window
-*/
-
-void displayImage(CImg<double> image)
-{
-  CImgDisplay display(image, "Image");
-
-  while (!display.is_closed()) 
-  {
-    display.wait();
-  }
-}
-
-/**
-  Creates a window to display a vector of images given as input parameter.
-  Displays one image at a time
-
-  @param images The vector containing the images to be shown on a window
-*/
-void displayImages(vector< CImg<double> > images)
-{
-  for(int i = 0; i < images.size(); i++) displayImage(images[i]);
 }
 
 /**

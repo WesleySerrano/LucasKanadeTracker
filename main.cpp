@@ -257,7 +257,7 @@ vector<Point> findTrackPoints(vector< CImg<double> > imageGradients, const int t
       double** matrix;
       matrix = calculateMatrix(gradientX, gradientY, x, y, offset);
 
-      const double lambda = minimunEigenValue(matrix, x, y);
+      const double lambda = minimunEigenValue(matrix);
 
       lambdaMatrix[y][x] = lambda;
 
@@ -350,13 +350,52 @@ vector<Vector2> calculateOpticalFlow(vector<Point> pointsToTrack, vector< CImg<d
   return opticalFlows;
 }
 
+/**
+  Find the flow vector of the input point given
+
+  @param pointToTrack The point to be tracked during the algorithm
+  @param imageGradients The horizontal and vertical gradients of an image
+  @param trackerFilterSize The size of the windows to filter the points found
+
+  @return The flow vectors for each point of the input
+*/
+Vector2 calculateOpticalFlow(Point pointToTrack, vector< CImg<double> > imageGradients, CImg<double> timeGradient, const int trackerFilterSize)
+{
+  const int offset = (int) trackerFilterSize/2;
+  
+  CImg<double> gradientX = imageGradients[0], gradientY = imageGradients[1];
+  
+  const double x = pointToTrack.x;
+  const double y = pointToTrack.y;
+
+  double **matrix, **inverse, *vector;
+  matrix = calculateMatrix(gradientX, gradientY, x, y, offset);
+
+  inverse = invertMatrix(matrix);
+  vector = calculateVector(gradientX, gradientY, timeGradient, x, y, offset);
+
+  Vector2 opticalFlow = multiplyVectorByMatrix(inverse, vector);
+
+  return opticalFlow;
+}
+
 void pyramidalOpticalFlow(vector<Point> pointsToTrack, vector< CImg<double> > imageOneGradients, vector< CImg<double> > imageTwoGradients, const int trackerFilterSize)
 {
   const int NUMBER_OF_IMAGES = imageOneGradients.size();
+  vector<Vector2> opticalFlows;
+  vector<Point> points;
 
   for(int i = NUMBER_OF_IMAGES - 1; i >= 0; i++)
   {
+    if(i == NUMBER_OF_IMAGES - 1) points = pointsToTrack;
+    else
+    {
+      points.clear();
+      for(vector<Point>::iterator it = opticalFlows.begin(); it != opticalFlows.end(); ++it)
+      {
 
+      }
+    }
   }
 }
 
