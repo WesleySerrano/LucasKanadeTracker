@@ -324,7 +324,7 @@ CImg<double> makeTimeGradient(CImg<double> image1, CImg<double> image2, Point po
 
   @return The points to be tracked during the algorithm
 */
-vector<Point> findTrackPoints(vector< CImg<double> > imageGradients, const int trackerFilterSize)
+vector<Point> findTrackPoints(vector< CImg<double> > imageGradients, const int trackerFilterSize, Point firstBoundaryPoint, Point secondBoundaryPoint)
 {
   CImg<double> gradientX = imageGradients[0], gradientY = imageGradients[1];
   const int WIDTH = gradientX.width(), HEIGHT = gradientX.height();
@@ -339,32 +339,40 @@ vector<Point> findTrackPoints(vector< CImg<double> > imageGradients, const int t
     lambdaMatrix[i] = new double[WIDTH];
     for (int j = 0; j < WIDTH; j++) lambdaMatrix[i][j] = 0;
   }
+  
+  const int minX = min(firstBoundaryPoint.x, secondBoundaryPoint.x);
+  const int minY = min(firstBoundaryPoint.y, secondBoundaryPoint.y);
+  const int maxX = max(firstBoundaryPoint.x, secondBoundaryPoint.x);
+  const int maxY = max(firstBoundaryPoint.y, secondBoundaryPoint.y);
 
-  cimg_forXY(gradientX, x, y)
+  for(int y = minY + 1; y < maxY; y++)
   {
-    if((x > (offset - 1)) && (x < (WIDTH - offset)) && (y > (offset - 1)) && (y < (HEIGHT - offset)))
+    for(int x = minX + 1; x < maxX; x++)
     {
-      double** matrix;
-      matrix = calculateMatrix(gradientX, gradientY, x, y, offset);
-
-      const double lambda = minimunEigenValue(matrix);
-
-      lambdaMatrix[y][x] = lambda;
-
-      if(x == offset && y == offset)
+      if((x > (offset - 1)) && (x < (WIDTH - offset)) && (y > (offset - 1)) && (y < (HEIGHT - offset)))
       {
-        maxLambda = lambda;
-      }
-      else
-      {
-        if(lambda > maxLambda) maxLambda = lambda;
+        double** matrix;
+        matrix = calculateMatrix(gradientX, gradientY, x, y, offset);
+
+        const double lambda = minimunEigenValue(matrix);
+
+        lambdaMatrix[y][x] = lambda;
+
+        if(x == offset && y == offset)
+        {
+          maxLambda = lambda;
+        }
+        else
+        {
+          if(lambda > maxLambda) maxLambda = lambda;
+        }
       }
     }
   }
 
-  for (int i = offset; i < HEIGHT - offset; i++)
+  for (int i = minY + offset + 1; i < maxY - offset - 1; i++)
   {
-    for (int j = offset; j < WIDTH - offset; j++)
+    for (int j = minX + offset + 1; j < maxX - offset - 1; j++)
     {
       bool maxInNeighbourhood = true;
 
@@ -540,7 +548,6 @@ int main (int argc, char **argv)
    	 exit(-1);
    }
 
-  const unsigned char green[] = { 0,255,0 };
   const int gaussianFilterSize = 5, trackerFilterSize = 3;
   const int NUMBER_OF_IMAGES = atoi(argv[1]);
   vector< CImg<double> > frames;
@@ -578,13 +585,19 @@ int main (int argc, char **argv)
   vector< CImg<double> > gaussianPyramidFrame2 = makeGaussianPyramid(frame2, gaussianFilterSize);
   cout << "Finished in " << float( clock () - begin_time ) /  CLOCKS_PER_SEC << " seconds\n";
 
+  vector< Point > boundary = getBoundary(frame1);
+
+  Point firstBoundaryPoint = boundary[0], secondBoundaryPoint = boundary[1];
+
   cout << "Finding first points\n";
   begin_time = clock();
-  vector<Point> pointsToTrack = findTrackPoints(gradientsFrame1, trackerFilterSize);
+  vector<Point> pointsToTrack = findTrackPoints(gradientsFrame1, trackerFilterSize, firstBoundaryPoint, secondBoundaryPoint);
   cout << "Finished in " << float( clock () - begin_time ) /  CLOCKS_PER_SEC << " seconds\n";
 
   vector<Vector2> opticalFlows = pyramidalOpticalFlow(pointsToTrack,  gaussianPyramidFrame1, gaussianPyramidFrame2, gaussianFilterSize, trackerFilterSize);
+  
   markPointsOnImage(frame1, pointsToTrack);
+  
   for(int i = 1; i < NUMBER_OF_IMAGES - 1; i++)
   {
     for(int j = 0; j < pointsToTrack.size(); j++)

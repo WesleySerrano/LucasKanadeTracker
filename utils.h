@@ -94,6 +94,75 @@ void displayImage(CImg<double> image)
 }
 
 /**
+  Creates a window to display a image given as input parameter and draws a rectangle on the giver coordinates
+
+  @param image Image to be shown on a window
+*/
+
+void displayImageWithRectangle(CImg<double> image, int x0, int y0, int x1, int y1)
+{
+  double color[] = {0, 255, 0};
+  CImgDisplay display(image.draw_line(x0, y0, x0, y1, color)
+                           .draw_line(x0, y1, x1, y1, color)
+                           .draw_line(x1, y1, x1, y0, color)
+                           .draw_line(x0, y0, x1, y0, color), "Image");
+
+  while (!display.is_closed()) 
+  {
+    display.wait();
+  }
+}
+
+vector<Point> getBoundary(CImg<double> image)
+{
+  double color[] = {0, 255, 0};
+  int x0 = 0, y0 = 0, x1 = image.width() - 1, y1 = image.height() - 1;
+  CImg<double> displayImage = image;
+  CImgDisplay display(displayImage.draw_line(x0, y0, x0, y1, color)
+                           .draw_line(x0, y1, x1, y1, color)
+                           .draw_line(x1, y1, x1, y0, color)
+                           .draw_line(x0, y0, x1, y0, color), "Image");
+
+  while (!display.is_closed()) 
+  {
+    if(display.button()&1)
+    {
+      x0 = display.mouse_x();
+      y0 = display.mouse_y();
+      
+      displayImage = image;
+      displayImage.draw_line(x0, y0, x0, y1, color)
+                  .draw_line(x0, y1, x1, y1, color)
+                  .draw_line(x1, y1, x1, y0, color)
+                  .draw_line(x0, y0, x1, y0, color).display(display);
+    }
+    if(display.button()&2)
+    {
+      x1 = display.mouse_x();
+      y1 = display.mouse_y();
+      displayImage = image;
+      displayImage.draw_line(x0, y0, x0, y1, color)
+                  .draw_line(x0, y1, x1, y1, color)
+                  .draw_line(x1, y1, x1, y0, color)
+                  .draw_line(x0, y0, x1, y0, color).display(display);
+    }
+    display.wait();
+  }
+
+  Point firstBoundaryPoint, secondBoundaryPoint;
+  firstBoundaryPoint.x = x0;
+  firstBoundaryPoint.y = y0;
+  secondBoundaryPoint.x = x1;
+  secondBoundaryPoint.y = y1;
+  
+  vector<Point> boundary;
+  boundary.push_back(firstBoundaryPoint);
+  boundary.push_back(secondBoundaryPoint);
+
+  return boundary;
+}
+
+/**
   Creates a window to display a vector of images given as input parameter.
   Displays one image at a time
 
