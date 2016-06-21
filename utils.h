@@ -11,6 +11,7 @@ Application auxiliary functions
 
 #include "CImg.h"
 #include <iostream>
+#include <cstdlib>
 #include <vector>
 #include <cmath>
 #include <string>
@@ -164,7 +165,7 @@ void markPointsOnImage(CImg<double> image, vector<Point> pointsToMark)
   {
     const double x = it->x;
     const double y = it->y;
-    
+
     if(x < 0 || x >= WIDTH) continue;
     if(y < 0 || y >= HEIGHT) continue;
 
