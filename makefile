@@ -1,4 +1,4 @@
 COMPILER = g++
 
-main: main.cpp
-	$(COMPILER) -g -o main main.cpp -lX11 -lpthread -lm
+main: main.cpp utils.h
+	$(COMPILER) -g -o main main.cpp utils.h -lX11 -lpthread -lm
