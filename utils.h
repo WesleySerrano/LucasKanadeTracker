@@ -109,7 +109,6 @@ void displayImages(vector< CImg<double> > images)
   @param image Image to be transformed
   @param scale Indicates whether or not the RGB channels values should be in the range [0, 1] or [0, 255] (as integer values)
 
-
   @return Image in gray scale
 */
 CImg<double> makeImageGray(CImg<double> image, bool scale = true)
@@ -119,13 +118,21 @@ CImg<double> makeImageGray(CImg<double> image, bool scale = true)
 
   cimg_forXY(result, x, y)
   {
-    const double r = result(x, y, 0, 0)/scaleFactor;
-    const double g = result(x, y, 0, 1)/scaleFactor;
-    const double b = result(x, y, 0, 2)/scaleFactor;
+    if(image.spectrum() > 1)
+    {
+      const double r = result(x, y, 0, 0)/scaleFactor;
+      const double g = result(x, y, 0, 1)/scaleFactor;
+      const double b = result(x, y, 0, 2)/scaleFactor;
 
-    result(x, y, 0, 0) = 0.299 * r + 0.587 * g + 0.114 * b;
-    result(x, y, 0, 1) = 0.299 * r + 0.587 * g + 0.114 * b;
-    result(x, y, 0, 2) = 0.299 * r + 0.587 * g + 0.114 * b;
+      result(x, y, 0, 0) = 0.299 * r + 0.587 * g + 0.114 * b;
+      result(x, y, 0, 1) = 0.299 * r + 0.587 * g + 0.114 * b;
+      result(x, y, 0, 2) = 0.299 * r + 0.587 * g + 0.114 * b;
+    }
+    else
+    {
+      const double c = result(x, y, 0, 0)/scaleFactor;
+      result(x, y, 0, 0) = c;
+    }
   }
 
   return result;
@@ -141,12 +148,25 @@ CImg<double> makeImageGray(CImg<double> image, bool scale = true)
 */
 void markPointsOnImage(CImg<double> image, vector<Point> pointsToMark)
 {
-  CImg<double> points = image;
+  const int WIDTH = image.width(), HEIGHT = image.height();
+  CImg<double> points(WIDTH,HEIGHT,1,3,0);
+
+   cimg_forXY(image,x,y)
+   {
+     const double c = image(x, y, 0, 0);
+
+    points(x, y, 0, 0) = c;
+    points(x, y, 0, 1) = c;
+    points(x, y, 0, 2) = c;
+   }
 
   for(vector<Point>::iterator it = pointsToMark.begin(); it != pointsToMark.end(); ++it)
   {
     const double x = it->x;
     const double y = it->y;
+    
+    if(x < 0 || x >= WIDTH) continue;
+    if(y < 0 || y >= HEIGHT) continue;
 
     points(x, y, 0, 0) = 0;
     points(x, y, 0, 1) = 255;

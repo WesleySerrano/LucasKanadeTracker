@@ -513,20 +513,24 @@ int main (int argc, char **argv)
 
   frame1 = makeImageGray(frame1);
   frame2 = makeImageGray(frame2);
-
   cout << "Making gradients\n";
+  clock_t begin_time = clock();
   vector< CImg<double> > gradientsFrame1 = makeGradients(frame1);
   vector< CImg<double> > gradientsFrame2 = makeGradients(frame2);
 
   CImg<double> timeGradient = makeTimeGradient(frame1, frame2);
+  cout << "Finished in " << float( clock () - begin_time ) /  CLOCKS_PER_SEC << " seconds\n";
 
   cout << "Making gaussian pyramids\n";
+  begin_time = clock();
   vector< CImg<double> > gaussianPyramidFrame1 = makeGaussianPyramid(frame1, gaussianFilterSize);
   vector< CImg<double> > gaussianPyramidFrame2 = makeGaussianPyramid(frame2, gaussianFilterSize);
-
+  cout << "Finished in " << float( clock () - begin_time ) /  CLOCKS_PER_SEC << " seconds\n";
 
   cout << "Finding first points\n";
+  begin_time = clock();
   vector<Point> pointsToTrack = findTrackPoints(gradientsFrame1, trackerFilterSize);
+  cout << "Finished in " << float( clock () - begin_time ) /  CLOCKS_PER_SEC << " seconds\n";
 
   vector<Vector2> opticalFlows = pyramidalOpticalFlow(pointsToTrack,  gaussianPyramidFrame1, gaussianPyramidFrame2, gaussianFilterSize, trackerFilterSize);
 
