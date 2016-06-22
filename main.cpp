@@ -287,18 +287,18 @@ vector< CImg<double> > makeGradients(CImg<double> image)
 
   @return The image containing the time gradient of each pixel
 */
-CImg<double> makeTimeGradient(CImg<double> image1, CImg<double> image2, Point pointToTrack, const int offset)
+CImg<double> makeTimeGradient(CImg<double> image1, CImg<double> image2, Point pointToTrack, Vector2 lastLevelFlow, Vector2 iterationGuess, const int offset)
 {
   const int WIDTH = image1.width(), HEIGHT = image1.height();
   const int WIDTH2 = image2.width(), HEIGHT2 = image2.height(); 
   CImg<double> result(WIDTH, HEIGHT, 1, 1, 0);
 
-  int x = pointToTrack.x, y = pointToTrack.y;
-
   cimg_forXY(result, x, y)
   {
     result(x,y,0,0) = 0;
   }
+  
+  int x = pointToTrack.x, y = pointToTrack.y;
 
   for(int i = -offset; i <= offset; i++)
   {
@@ -306,9 +306,18 @@ CImg<double> makeTimeGradient(CImg<double> image1, CImg<double> image2, Point po
     for(int j = -offset; j <= offset; j++)
     {
       const int px = x + j;
-      if(px >= 0 && px <= (WIDTH - 1) && py >=0 && py <= (HEIGHT - 1))
+      if(px >= 0 && px <= (WIDTH - 1) && py >= 0 && py <= (HEIGHT - 1))
       {
-        result(px,py,0,0) = (image1(px, py, 0, 0) - image2(px, py, 0, 0));
+        int px2 = px + lastLevelFlow.x + iterationGuess.x;
+        int py2 = py + lastLevelFlow.y + iterationGuess.y;
+
+        if(px2 < 0) px2 = 0;
+        else if(px2 >= WIDTH) px2 = WIDTH - 1;
+        
+        if(py2 < 0) py2 = 0;
+        else if(py2 >= HEIGHT) py2 = HEIGHT - 1;
+
+        result(px,py,0,0) = abs(image1(px, py, 0, 0) - image2(px2, py2, 0, 0));
       }
     }
   }
@@ -437,7 +446,7 @@ Vector2 calculateOpticalFlow(Point pointToTrack, Vector2 lastLevelFlow, vector< 
 
   for(int i = 1; i <= NUMBER_OF_ITERATIONS; i++)
   {
-    CImg<double> timeGradient = makeTimeGradient(frame1, frame2, pointToTrack, offset);
+    CImg<double> timeGradient = makeTimeGradient(frame1, frame2, pointToTrack, lastLevelFlow, iterationGuess, offset);
     vector = calculateVector(gradientX, gradientY, timeGradient, ceil(x), ceil(y), offset);
 
     opticalFlow = multiplyVectorByMatrix(inverse, vector);
@@ -448,6 +457,9 @@ Vector2 calculateOpticalFlow(Point pointToTrack, Vector2 lastLevelFlow, vector< 
     if(isnan(opticalFlow.x)) opticalFlow.x = 0.0;
     if(isnan(opticalFlow.y)) opticalFlow.y = 0.0;
   }
+
+  opticalFlow = iterationGuess;
+
   return opticalFlow;
 }
 
@@ -512,23 +524,20 @@ vector<Vector2> pyramidalOpticalFlow(vector<Point> points, vector< CImg<double> 
     cout << "Finding flows ";
     opticalFlows =  calculateOpticalFlow(pointsToTrack, gradientsFrame1, aproximations, frame1, frame2, trackerFilterSize);
 
-    /*for(int j = 0; j < opticalFlows.size(); j++)
-    {
-      aproximations[j].x = 2*(aproximations[j].x + opticalFlows[j].x);
-      aproximations[j].y = 2*(aproximations[j].y + opticalFlows[j].y);
-    }*/
-
     for(int j = 0; j < pointsToTrack.size(); j++)
     {
       pointsToTrack[j].x = 2.0*(pointsToTrack[j].x + opticalFlows[j].x);
       pointsToTrack[j].y = 2.0*(pointsToTrack[j].y + opticalFlows[j].y);
+
+      aproximations[j].x = 2.0*(aproximations[j].x + opticalFlows[j].x);
+      aproximations[j].y = 2.0*(aproximations[j].y + opticalFlows[j].y);
     }
     cout << "Finished\n";
   }
 
+  opticalFlows = aproximations;
   double averageVx = 0.0, averageVy = 0.0;
 
-  //opticalFlows = aproximations;
   for(int i = 0; i < opticalFlows.size(); i++)
   {
     averageVx += opticalFlows[i].x;
@@ -572,6 +581,7 @@ int main (int argc, char **argv)
 
   CImg<double> frame1 = makeImageGray(frames[0]);
   CImg<double> frame2 = makeImageGray(frames[1]);
+  const int WIDTH = frame1.width(), HEIGHT = frame1.height();
   cout << "Making gradients\n";
   clock_t begin_time = clock();
   vector< CImg<double> > gradientsFrame1 = makeGradients(frame1);
@@ -597,18 +607,50 @@ int main (int argc, char **argv)
   vector<Vector2> opticalFlows = pyramidalOpticalFlow(pointsToTrack,  gaussianPyramidFrame1, gaussianPyramidFrame2, gaussianFilterSize, trackerFilterSize);
   
   markPointsOnImage(frame1, pointsToTrack);
+  int x1 = -1, y1 = -1, x0 = WIDTH, y0 = HEIGHT;
+
+  for(int j = 0; j < pointsToTrack.size(); j++)
+  {      
+    if(pointsToTrack[j].x >= 0 && pointsToTrack[j].x < WIDTH)
+    {
+      if(pointsToTrack[j].x < x0) x0 = pointsToTrack[j].x;
+      if(pointsToTrack[j].x > x1) x1 = pointsToTrack[j].x;
+    }
+
+    if(pointsToTrack[j].y >= 0 && pointsToTrack[j].y < HEIGHT)
+    {
+      if(pointsToTrack[j].y < y0) y0 = pointsToTrack[j].y;
+      if(pointsToTrack[j].y > y1) y1 = pointsToTrack[j].y;
+    }
+  }
+  displayImageWithRectangle(frame1, x0, y0, x1, y1);
   
   for(int i = 1; i < NUMBER_OF_IMAGES - 1; i++)
   {
+    cout << "Frame " << i - 1 << " to " << i << endl;
+    int x1 = -1, y1 = -1, x0 = WIDTH, y0 = HEIGHT;
     for(int j = 0; j < pointsToTrack.size(); j++)
     {      
       pointsToTrack[j].x += opticalFlows[j].x;
       pointsToTrack[j].y += opticalFlows[j].y;
+
+      if(pointsToTrack[j].x >= 0 && pointsToTrack[j].x < WIDTH)
+      {
+        if(pointsToTrack[j].x < x0) x0 = pointsToTrack[j].x;
+        if(pointsToTrack[j].x > x1) x1 = pointsToTrack[j].x;
+      }
+
+      if(pointsToTrack[j].y >= 0 && pointsToTrack[j].y < HEIGHT)
+      {
+        if(pointsToTrack[j].y < y0) y0 = pointsToTrack[j].y;
+        if(pointsToTrack[j].y > y1) y1 = pointsToTrack[j].y;
+      }
     }
 
     frame1 = frame2;
     frame2 = makeImageGray(frames[i + 1]);
-    markPointsOnImage(frame1, pointsToTrack);
+    
+    displayImageWithRectangle(frame1, x0, y0, x1, y1);
     gradientsFrame1 = gradientsFrame2;
     gradientsFrame2 = makeGradients(frame2);
 
@@ -617,14 +659,29 @@ int main (int argc, char **argv)
 
     opticalFlows = pyramidalOpticalFlow(pointsToTrack,  gaussianPyramidFrame1, gaussianPyramidFrame2, gaussianFilterSize, trackerFilterSize);
   }
+  
+  x1 = -1; y1 = -1; x0 = WIDTH; y0 = HEIGHT;
 
   for(int j = 0; j < pointsToTrack.size(); j++)
   {      
     pointsToTrack[j].x += opticalFlows[j].x;
     pointsToTrack[j].y += opticalFlows[j].y;
+
+    if(pointsToTrack[j].x >= 0 && pointsToTrack[j].x < WIDTH)
+    {
+      if(pointsToTrack[j].x < x0) x0 = pointsToTrack[j].x;
+      if(pointsToTrack[j].x > x1) x1 = pointsToTrack[j].x;
+    }
+
+    if(pointsToTrack[j].y >= 0 && pointsToTrack[j].y < HEIGHT)
+    {
+      if(pointsToTrack[j].y < y0) y0 = pointsToTrack[j].y;
+      if(pointsToTrack[j].y > y1) y1 = pointsToTrack[j].y;
+    }
   }
 
-  markPointsOnImage(frame2, pointsToTrack);
+  //markPointsOnImage(frame2, pointsToTrack);
+   displayImageWithRectangle(frame1, x0, y0, x1, y1);
 
   return 0;
 }
