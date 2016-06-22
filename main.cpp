@@ -101,7 +101,7 @@ double** calculateMatrix(CImg<double> gradientX, CImg<double> gradientY, int x, 
 }
 
 /**
-  Calculates the vector (...)
+  Calculates the spatial gradient vector
 
   @param gradientX The horizontal gradient for each pixel of an image
   @param gradientY The vertical gradient for each pixel of an image
@@ -110,7 +110,7 @@ double** calculateMatrix(CImg<double> gradientX, CImg<double> gradientY, int x, 
   @param y The y coordinate of the pixel
   @param offset The distance from the pixel to its furthest horizontal (and vertical) neighbours
 
-  @return The vector (...)
+  @return The spatial gradient vector
 */
 double* calculateVector(CImg<double> gradientX, CImg<double> gradientY, CImg<double> timeGradient, int x, int y, int offset)
 {
@@ -284,8 +284,11 @@ vector< CImg<double> > makeGradients(CImg<double> image)
 
   @param image1 The image which gradient will be calculated
   @param image2 The next image in the frames sequence
+  @param pointToTrack The coordinates of the pixel to be tracked
+  @param lastLevelFlow The pixel optical flow on the previous level of the pyramid
+  @param offset The offset value to make the grid around the pixel
 
-  @return The image containing the time gradient of each pixel
+  @return The image containing the time gradient of each pixel neighbour to the given point
 */
 CImg<double> makeTimeGradient(CImg<double> image1, CImg<double> image2, Point pointToTrack, Vector2 lastLevelFlow, Vector2 iterationGuess, const int offset)
 {
@@ -326,10 +329,12 @@ CImg<double> makeTimeGradient(CImg<double> image1, CImg<double> image2, Point po
 }
 
 /**
-  Find the points to be tracked by the Lucas Kanade algorithm
+  Find the points inside a rectangular region to be tracked by the Lucas Kanade algorithm
 
   @param imageGradients The horizontal and vertical gradients of an image
   @param trackerFilterSize The size of the windows to filter the points found
+  @param firstBoundaryPoint The coordinates of the upper left corner of the region
+  @param secondBoundaryPoint The coordinates of the lower right corner of the region
 
   @return The points to be tracked during the algorithm
 */
@@ -420,8 +425,12 @@ vector<Point> findTrackPoints(vector< CImg<double> > imageGradients, const int t
   Find the flow vector of the input point given
 
   @param pointToTrack The point to be tracked during the algorithm
+  @param lastLevelFlow The pixel optical flow on the previous level of the pyramid
   @param imageGradients The horizontal and vertical gradients of an image
   @param trackerFilterSize The size of the windows to filter the points found
+  @param frame1 The current frame 
+  @param frame2 The next frame 
+  @param offset The offset value to make the grid around each point
 
   @return The flow vectors for each point of the input
 */
@@ -468,6 +477,9 @@ Vector2 calculateOpticalFlow(Point pointToTrack, Vector2 lastLevelFlow, vector< 
 
   @param pointsToTrack The points to be tracked during the algorithm
   @param imageGradients The horizontal and vertical gradients of an image
+  @param lastLevelFlows The optical flow vectors on the pyramid previous level
+  @param frame1 The current frame 
+  @param frame2 The next frame 
   @param trackerFilterSize The size of the windows to filter the points found
 
   @return The flow vectors for each point of the input
@@ -496,7 +508,16 @@ vector<Vector2> calculateOpticalFlow(vector<Point> pointsToTrack, vector< CImg<d
   return opticalFlows;
 }
 
-vector<Vector2> pyramidalOpticalFlow(vector<Point> points, vector< CImg<double> > imageOnePyramid, vector< CImg<double> > imageTwoPyramid, const int gaussianFilterSize, const int trackerFilterSize)
+/**
+  Calculates the optical flow using the pyramid approach
+  @param points The points to be tracked
+  @param imageOnePyramid The gaussian pyramid for the first frame
+  @param imageTwoPyramid The gaussian pyramid for the second frame
+  @param trackerFilterSize The size of the grid to be used on the tracker
+
+  @return The optical flow vectors for each of the input points
+*/
+vector<Vector2> pyramidalOpticalFlow(vector<Point> points, vector< CImg<double> > imageOnePyramid, vector< CImg<double> > imageTwoPyramid, const int trackerFilterSize)
 {
   const int NUMBER_OF_IMAGES = imageOnePyramid.size();
   
@@ -548,40 +569,21 @@ vector<Vector2> pyramidalOpticalFlow(vector<Point> points, vector< CImg<double> 
   return opticalFlows;
 }
 
-int main (int argc, char **argv)
+/**
+  Runs the Lucas-Kanade tracker for the frames sequence
+
+  @param frames The frames sequence to be tracked
+*/
+void lucasKanade(vector< CImg<double> > frames)
 {
-   if(argc < 3)
-   {
-   	 cout << "Insufficient arguments\n";
-     cout << "You must type: " << argv[0] << " <number of images> <images format> <files names prefix> (Optional)";
-   	 exit(-1);
-   }
-
+  const int NUMBER_OF_IMAGES = frames.size(); 
   const int gaussianFilterSize = 5, trackerFilterSize = 3;
-  const int NUMBER_OF_IMAGES = atoi(argv[1]);
-  vector< CImg<double> > frames;
-
-  for(int i = 1; i <= NUMBER_OF_IMAGES; i++)
-  { 
-    std::stringstream str;
-    str << i;
-    char fileName[100];
-    if(argc >= 4)
-    {
-      strcpy(fileName, argv[3]);
-      strcat(fileName, str.str().c_str());
-    }
-    else strcpy(fileName, str.str().c_str());
-    strcat(fileName, ".");
-    strcat(fileName, argv[2]);
-
-    CImg<double> frame(fileName);
-    frames.push_back(frame);
-  }
 
   CImg<double> frame1 = makeImageGray(frames[0]);
   CImg<double> frame2 = makeImageGray(frames[1]);
+
   const int WIDTH = frame1.width(), HEIGHT = frame1.height();
+
   cout << "Making gradients\n";
   clock_t begin_time = clock();
   vector< CImg<double> > gradientsFrame1 = makeGradients(frame1);
@@ -682,6 +684,40 @@ int main (int argc, char **argv)
 
   //markPointsOnImage(frame2, pointsToTrack);
    displayImageWithRectangle(frame1, x0, y0, x1, y1);
+
+}
+
+int main (int argc, char **argv)
+{
+   if(argc < 3)
+   {
+   	 cout << "Insufficient arguments\n";
+     cout << "You must type: " << argv[0] << " <number of images> <images format> <files names prefix> (Optional)";
+   	 exit(-1);
+   }
+
+  const int NUMBER_OF_IMAGES = atoi(argv[1]);
+  vector< CImg<double> > frames;
+
+  for(int i = 1; i <= NUMBER_OF_IMAGES; i++)
+  { 
+    std::stringstream str;
+    str << i;
+    char fileName[100];
+    if(argc >= 4)
+    {
+      strcpy(fileName, argv[3]);
+      strcat(fileName, str.str().c_str());
+    }
+    else strcpy(fileName, str.str().c_str());
+    strcat(fileName, ".");
+    strcat(fileName, argv[2]);
+
+    CImg<double> frame(fileName);
+    frames.push_back(frame);
+  }
+  
+  lucasKanade(NUMBER_OF_IMAGES, frames);
 
   return 0;
 }

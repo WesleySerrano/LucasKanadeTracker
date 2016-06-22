@@ -97,6 +97,10 @@ void displayImage(CImg<double> image)
   Creates a window to display a image given as input parameter and draws a rectangle on the giver coordinates
 
   @param image Image to be shown on a window
+  @param x0 Rectangle upper left corner x coordinate
+  @param y0 Rectangle upper left corner y coordinate
+  @param x1 Rectangle lower right corner x coordinate
+  @param y1 Rectangle lower right corner y coordinate
 */
 
 void displayImageWithRectangle(CImg<double> image, int x0, int y0, int x1, int y1)
@@ -113,6 +117,13 @@ void displayImageWithRectangle(CImg<double> image, int x0, int y0, int x1, int y
   }
 }
 
+/**
+  Lets the user define a boundary box on the image
+  
+  @param image The image which boundary will be defined
+
+  @return The coordinates of the upper left corner and the lower right corner of the rectangle
+*/
 vector<Point> getBoundary(CImg<double> image)
 {
   double color[] = {0, 255, 0};
