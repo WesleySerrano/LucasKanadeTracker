@@ -30,10 +30,10 @@ double** invertMatrix(double** matrix)
 
   const double determinant = (matrix[0][0] * matrix[1][1]) - (matrix[0][1] * matrix[1][0]);
 
-  inverse[0][0] = matrix[1][1]/determinant;
-  inverse[0][1] = -matrix[0][1]/determinant;
-  inverse[1][0] = -matrix[1][0]/determinant;
-  inverse[1][1] = matrix[0][0]/determinant;
+  inverse[0][0] = determinant != 0.0 ? matrix[1][1]/determinant : 0;
+  inverse[0][1] = determinant != 0.0 ? -matrix[0][1]/determinant : 0;
+  inverse[1][0] = determinant != 0.0 ? -matrix[1][0]/determinant : 0;
+  inverse[1][1] = determinant != 0.0 ? matrix[0][0]/determinant : 0;
 
   return inverse;
 }
@@ -65,7 +65,6 @@ double** calculateMatrix(CImg<double> gradientX, CImg<double> gradientY, int x, 
     }
   }
 
-
   for(int i = -offset; i <= offset; i++)
   {
     const int py = y + i;
@@ -76,7 +75,6 @@ double** calculateMatrix(CImg<double> gradientX, CImg<double> gradientY, int x, 
 //assert(py >= 0); assert(py <= HEIGHT - 1);
       //const double delta = sqrt(2.0);
       //const double squareDelta = delta * delta;
-      const double weight = 1.0;//(exp((-(i*i+j*j))/(2*squareDelta)))/(2*squareDelta*M_PI);
       double cX, cY;
       
       if(px >= 0 && px <= (WIDTH - 1) && py >= 0 && py <= (HEIGHT - 1))
@@ -90,10 +88,10 @@ double** calculateMatrix(CImg<double> gradientX, CImg<double> gradientY, int x, 
         cY = 0.0;
       }
 
-      matrix[0][0] += weight * (cX * cX);
-      matrix[1][0] += weight * (cX * cY);
-      matrix[0][1] += weight * (cX * cY);
-      matrix[1][1] += weight * (cY * cY);
+      matrix[0][0] += cX * cX;
+      matrix[1][0] += cX * cY;
+      matrix[0][1] += cX * cY;
+      matrix[1][1] += cY * cY;
     }
   }
 
@@ -132,13 +130,13 @@ double* calculateVector(CImg<double> gradientX, CImg<double> gradientY, CImg<dou
       const double cY = gradientY(px, py, 0, 0);
       const double cT = timeGradient(px, py, 0, 0);
 
-      vector[0] += (cX * cT);
-      vector[1] += (cY * cT);
+      vector[0] += (cT * cX);
+      vector[1] += (cT * cY);
     }
   }
 
-  vector[0] = -vector[0];
-  vector[1] = -vector[1];
+  //vector[0] = -vector[0];
+  //vector[1] = -vector[1];
 
   return vector;
 }
@@ -320,7 +318,7 @@ CImg<double> makeTimeGradient(CImg<double> image1, CImg<double> image2, Point po
         if(py2 < 0) py2 = 0;
         else if(py2 >= HEIGHT) py2 = HEIGHT - 1;
 
-        result(px,py,0,0) = abs(image1(px, py, 0, 0) - image2(px2, py2, 0, 0));
+        result(px,py,0,0) = (image1(px, py, 0, 0) - image2(px2, py2, 0, 0));
       }
     }
   }
@@ -436,7 +434,8 @@ vector<Point> findTrackPoints(vector< CImg<double> > imageGradients, const int t
 */
 Vector2 calculateOpticalFlow(Point pointToTrack, Vector2 lastLevelFlow, vector< CImg<double> > imageGradients, CImg<double> frame1, CImg<double> frame2, const int offset)
 {
-  const int NUMBER_OF_ITERATIONS = 1;
+  const int NUMBER_OF_ITERATIONS = 5;
+  const double opticalFlowLengthTheshold = 0.5;
 
   Vector2 opticalFlow;
   Vector2 iterationGuess;
@@ -448,12 +447,15 @@ Vector2 calculateOpticalFlow(Point pointToTrack, Vector2 lastLevelFlow, vector< 
   const double x = pointToTrack.x;
   const double y = pointToTrack.y;
   double **matrix, **inverse, *vector;
+  double opticalFlowLength = 1.0;
 
   matrix = calculateMatrix(gradientX, gradientY, ceil(x), ceil(y), offset);
 
   inverse = invertMatrix(matrix);
 
-  for(int i = 1; i <= NUMBER_OF_ITERATIONS; i++)
+  //for(int i = 1; i <= NUMBER_OF_ITERATIONS; i++)
+  int i = 0;
+  while(opticalFlowLength > opticalFlowLengthTheshold && i < NUMBER_OF_ITERATIONS)
   {
     CImg<double> timeGradient = makeTimeGradient(frame1, frame2, pointToTrack, lastLevelFlow, iterationGuess, offset);
     vector = calculateVector(gradientX, gradientY, timeGradient, ceil(x), ceil(y), offset);
@@ -463,8 +465,8 @@ Vector2 calculateOpticalFlow(Point pointToTrack, Vector2 lastLevelFlow, vector< 
     iterationGuess.x = iterationGuess.x + opticalFlow.x;
     iterationGuess.y = iterationGuess.y + opticalFlow.y;
 
-    if(isnan(opticalFlow.x)) opticalFlow.x = 0.0;
-    if(isnan(opticalFlow.y)) opticalFlow.y = 0.0;
+    opticalFlowLength = sqrt(opticalFlow.x*opticalFlow.x + opticalFlow.y*opticalFlow.y);
+    i++;
   }
 
   opticalFlow = iterationGuess;
@@ -489,7 +491,6 @@ vector<Vector2> calculateOpticalFlow(vector<Point> pointsToTrack, vector< CImg<d
   const int offset = (int) trackerFilterSize/2;
 
   vector<Vector2> opticalFlows;
-  double averageVx = 0, averageVy = 0;
 
   for(int j = 0; j < pointsToTrack.size(); j++)
   {
@@ -497,13 +498,8 @@ vector<Vector2> calculateOpticalFlow(vector<Point> pointsToTrack, vector< CImg<d
     Vector2 lastLevelFlow = lastLevelFlows[j];
     Vector2 opticalFlow = calculateOpticalFlow(point, lastLevelFlow, imageGradients, frame1, frame2, offset);
 
-    averageVx += opticalFlow.x;
-    averageVy += opticalFlow.y;
-
     opticalFlows.push_back(opticalFlow);
   }
-
-  //cout << averageVx/pointsToTrack.size() << " " << averageVy/pointsToTrack.size() << endl;
 
   return opticalFlows;
 }
@@ -532,9 +528,9 @@ vector<Vector2> pyramidalOpticalFlow(vector<Point> points, vector< CImg<double> 
     aproximations.push_back(v);
   }
 
-  pointsToTrack = findCorrespondingLevelPoints(points, NUMBER_OF_IMAGES - 1);
   for(int i = NUMBER_OF_IMAGES - 1; i >= 0; i--)
   {
+    pointsToTrack = findCorrespondingLevelPoints(points, i);
     cout << "Calculating flow for level " << i << endl;
     CImg<double> frame1 = imageOnePyramid[i], frame2 = imageTwoPyramid[i];
 
@@ -547,24 +543,16 @@ vector<Vector2> pyramidalOpticalFlow(vector<Point> points, vector< CImg<double> 
 
     for(int j = 0; j < pointsToTrack.size(); j++)
     {
-      pointsToTrack[j].x = 2.0*(pointsToTrack[j].x + opticalFlows[j].x);
-      pointsToTrack[j].y = 2.0*(pointsToTrack[j].y + opticalFlows[j].y);
-
       aproximations[j].x = 2.0*(aproximations[j].x + opticalFlows[j].x);
       aproximations[j].y = 2.0*(aproximations[j].y + opticalFlows[j].y);
     }
     cout << "Finished\n";
   }
-
-  opticalFlows = aproximations;
-  double averageVx = 0.0, averageVy = 0.0;
-
-  for(int i = 0; i < opticalFlows.size(); i++)
+  for(int j = 0; j < pointsToTrack.size(); j++)
   {
-    averageVx += opticalFlows[i].x;
-    averageVy += opticalFlows[i].y;
+    opticalFlows[j].x = aproximations[j].x/2.0; 
+    opticalFlows[j].y = aproximations[j].y/2.0; 
   }
-  cout << averageVx/opticalFlows.size() << " " << averageVy/opticalFlows.size() << endl;
 
   return opticalFlows;
 }
@@ -605,10 +593,9 @@ void lucasKanade(vector< CImg<double> > frames)
   begin_time = clock();
   vector<Point> pointsToTrack = findTrackPoints(gradientsFrame1, trackerFilterSize, firstBoundaryPoint, secondBoundaryPoint);
   cout << "Finished in " << float( clock () - begin_time ) /  CLOCKS_PER_SEC << " seconds\n";
-
-  vector<Vector2> opticalFlows = pyramidalOpticalFlow(pointsToTrack,  gaussianPyramidFrame1, gaussianPyramidFrame2, gaussianFilterSize, trackerFilterSize);
   
   markPointsOnImage(frame1, pointsToTrack);
+  
   int x1 = -1, y1 = -1, x0 = WIDTH, y0 = HEIGHT;
 
   for(int j = 0; j < pointsToTrack.size(); j++)
@@ -625,12 +612,15 @@ void lucasKanade(vector< CImg<double> > frames)
       if(pointsToTrack[j].y > y1) y1 = pointsToTrack[j].y;
     }
   }
-  displayImageWithRectangle(frame1, x0, y0, x1, y1);
-  
+  displayImageWithRectangle(frame1, x0, y0, x1, y1);  
+
+  vector<Vector2> opticalFlows = pyramidalOpticalFlow(pointsToTrack,  gaussianPyramidFrame1, gaussianPyramidFrame2, trackerFilterSize);
+
   for(int i = 1; i < NUMBER_OF_IMAGES - 1; i++)
   {
     cout << "Frame " << i - 1 << " to " << i << endl;
-    int x1 = -1, y1 = -1, x0 = WIDTH, y0 = HEIGHT;
+    int x0 = WIDTH, y0 = HEIGHT, x1 = -1, y1 = -1;
+
     for(int j = 0; j < pointsToTrack.size(); j++)
     {      
       pointsToTrack[j].x += opticalFlows[j].x;
@@ -659,10 +649,10 @@ void lucasKanade(vector< CImg<double> > frames)
     gaussianPyramidFrame1 = gaussianPyramidFrame2;
     gaussianPyramidFrame2 = makeGaussianPyramid(frame2, gaussianFilterSize);
 
-    opticalFlows = pyramidalOpticalFlow(pointsToTrack,  gaussianPyramidFrame1, gaussianPyramidFrame2, gaussianFilterSize, trackerFilterSize);
+    opticalFlows = pyramidalOpticalFlow(pointsToTrack,  gaussianPyramidFrame1, gaussianPyramidFrame2, trackerFilterSize);
   }
   
-  x1 = -1; y1 = -1; x0 = WIDTH; y0 = HEIGHT;
+   x0 = WIDTH; y0 = HEIGHT; x1 = -1; y1 = -1;
 
   for(int j = 0; j < pointsToTrack.size(); j++)
   {      
@@ -682,9 +672,7 @@ void lucasKanade(vector< CImg<double> > frames)
     }
   }
 
-  //markPointsOnImage(frame2, pointsToTrack);
    displayImageWithRectangle(frame1, x0, y0, x1, y1);
-
 }
 
 int main (int argc, char **argv)
@@ -717,7 +705,7 @@ int main (int argc, char **argv)
     frames.push_back(frame);
   }
   
-  lucasKanade(NUMBER_OF_IMAGES, frames);
+  lucasKanade(frames);
 
   return 0;
 }

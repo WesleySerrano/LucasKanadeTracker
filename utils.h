@@ -106,6 +106,11 @@ void displayImage(CImg<double> image)
 void displayImageWithRectangle(CImg<double> image, int x0, int y0, int x1, int y1)
 {
   double color[] = {0, 255, 0};
+  const int WIDTH = image.width(), HEIGHT = image.height();
+
+  x0 = max(0, x0); y0 = max(0, y0);
+  x1 = min(WIDTH, x1); y1 = min(HEIGHT, y1);
+
   CImgDisplay display(image.draw_line(x0, y0, x0, y1, color)
                            .draw_line(x0, y1, x1, y1, color)
                            .draw_line(x1, y1, x1, y0, color)
